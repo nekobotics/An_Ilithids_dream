@@ -1,8 +1,8 @@
 //#include <Adafruit_NeoPixel.h>
 #include <FastLED.h>
 
-// A:463 , B:490
-#define NUMPIXELS 463
+// A:463 + Bod , B:490 + Bod
+#define NUMPIXELS 607
 #define Pin1 16
 #define Pin3 15
 #define Pin5 14
@@ -19,7 +19,7 @@ CRGB leds[NUMPIXELS];
 #define NumPix7 71
 #define NumPix9 69
 #define NumPix11 64
-#define NumPixBod 0
+#define NumPixBod 144
 
 const int Pin1Start = 0; 
 const int Pin3Start = NumPix1;
@@ -40,27 +40,28 @@ struct Time{
   unsigned long LastTriggered;
   long Duration;
 };
-Time NeuronFrames = {0,1};
-Time BodyFrame = {0,NeuronFrames.Duration*2};
+Time NeuronFrames = {0,0};
+Time BodyFrame = {0,2};
 Time NeuronWait = {0,50};
 
 
-const int Length = 10;
+const int Length = 5;
 int SignalWhite[Length];
-int BodyWhite[21];
+int BodyWhite[10];
 
 int CurrentBodyState;
 bool BodyRun = false;
+bool SignalWait;
 
 const int NumIncomingSignals = 2;
 const int NumIncomingPaths = 2;
 const int NumOutGoingPaths = 4;
-const int NumOutGoing = NumIncomingSignals;
+const int NumOutGoing = NumIncomingSignals * 2;
 const int NumOutGoingSignals = 4;
 const int NumSignals = NumIncomingSignals * NumOutGoingPaths;
 
-const int IncomingPathsStart[NumIncomingPaths] = {Pin1Start,Pin3Start};
-const int IncomingPathsEnd[NumIncomingPaths] = {Pin3Start - 1,Pin5Start - 1};
+const int IncomingPathsStart[NumIncomingPaths] = {Pin3Start - 1,Pin5Start - 1, };
+const int IncomingPathsEnd[NumIncomingPaths] = {Pin1Start,Pin3Start};
 const int OutgoingPathsStart[NumOutGoingPaths] = {Pin5Start,Pin7Start,Pin9Start,Pin11Start};
 const int OutgoingPathsEnd[NumOutGoingPaths] = {Pin7Start - 1,Pin9Start - 1,Pin11Start - 1,BodyStart - 1};
 
@@ -134,8 +135,8 @@ void ColorSetup(){
     SignalWhite[x] = 125 - (125*cos(x * (6.29/(Length-1))));
   }
 
-  for(int x =0; x < 11; x++){
-    BodyWhite[x] = 125 - (125*cos(x * (6.29/(10))));
+  for(int x =0; x < 10; x++){
+    BodyWhite[x] = 125 - (125*cos(x * (3.14/(9))));
   }
 }
 
@@ -163,16 +164,16 @@ void Body(){
     if(Incoming[x].Incoming == true){
       Incoming[x].Incoming = false;
       BodyRun = true;
+      SignalWait = true;
     }
   }
-  if(BodyRun == true && CurrentTime >= BodyFrame.Duration + BodyFrame.LastTriggered){
-    for(int x = BodyStart; x < BodyEnd; x++){
-      //strip.setPixelColor(x,BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);
-      leds[x] = CRGB(BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);
 
-    }
+  if((BodyRun == true || SignalWait == true) && CurrentTime >= BodyFrame.Duration + BodyFrame.LastTriggered){
+    for(int x = BodyStart; x < BodyEnd; x++){leds[x] = CRGB(BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);}
 
-    if(CurrentBodyState == 5){
+    if(SignalWait == true && CurrentBodyState < 9){CurrentBodyState++;}
+    else if(SignalWait == true && CurrentBodyState == 9){
+      SignalWait = false;
       for(int i = 0; i < NumOutGoing; i++){
         if(Outgoing[i][0].active == false){
           for(int y = 0; y < NumOutGoingSignals; y++){Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);}
@@ -180,12 +181,8 @@ void Body(){
         }
       }
     }
-
-    if(CurrentBodyState < 20){CurrentBodyState++;}
-    else{
-      BodyRun = false;
-      CurrentBodyState = 0;
-    }
+    else if(CurrentBodyState > 0){CurrentBodyState--;}
+    else if(CurrentBodyState == 0){BodyRun = false;}
 
     BodyFrame.LastTriggered = CurrentTime;
   }
@@ -202,8 +199,9 @@ void loop() {
         break;
       }
     }
+
+    NeuronWait.Duration = random(250,5000);
     NeuronWait.LastTriggered = CurrentTime;
-    NeuronWait.Duration = random(50,500);
   }
 
   if(CurrentTime >= NeuronFrames.Duration + NeuronFrames.LastTriggered){
