@@ -1,39 +1,32 @@
 #include <FastLED.h>
 
 // A:463 + Bod , B:490 + Bod
-#define NUMPIXELS 607
-#define Pin1 16
-#define Pin3 15
-#define Pin5 14
-#define Pin7 11
-#define Pin9 10
-#define Pin11 9
-#define BodyPin 8
+#define NUMPIXELS 650
+#define Pin1 15
+#define Pin3 14
+#define Pin9 11
+#define Pin11 10
+#define BodyPin 9
 #define IncomingPin 22
 #define OutgoingPin 21
 
 CRGB leds[NUMPIXELS];
 
-#define NumPix1 67
-#define NumPix3 102
-#define NumPix5 90
-#define NumPix7 71
-#define NumPix9 69
-#define NumPix11 64
+#define NumPix1 142
+#define NumPix3 79
+#define NumPix9 167
+#define NumPix11 127
 #define NumPixBod 144
 
 const int Pin1Start = 0; 
 const int Pin3Start = NumPix1;
-const int Pin5Start = Pin3Start + NumPix3;
-const int Pin7Start = Pin5Start + NumPix5;
-const int Pin9Start = Pin7Start + NumPix7;
+const int Pin9Start = Pin3Start + NumPix3;
 const int Pin11Start = Pin9Start + NumPix9;
 const int BodyStart = Pin11Start + NumPix11;
 const int BodyEnd = NUMPIXELS - 1;
 
-bool SignalFromBActive;
-bool SignalFromB;
-bool SignalToB;
+bool SignalFromAActive;
+bool SignalFromA;
 
 int CurrentRandomNum = 0;
 
@@ -45,7 +38,7 @@ struct Time{
 Time NeuronFrames = {0,0};
 Time BodyFrame = {0,2};
 Time NeuronWait = {0,50};
-Time CellBSignalWait = {0,2};
+Time CellASignalWait = {0,2};
 
 
 const int Length = 5;
@@ -63,10 +56,10 @@ const int NumOutGoing = NumIncomingPaths * 2;
 const int NumOutGoingSignals = 4;
 const int NumSignals = NumIncomingSignals * NumOutGoingPaths;
 
-const int IncomingPathsStart[NumIncomingPaths] = {Pin3Start - 1, Pin5Start - 1};
-const int IncomingPathsEnd[NumIncomingPaths] = {Pin1Start, Pin3Start};
-const int OutgoingPathsStart[NumOutGoingPaths] = {Pin5Start,Pin7Start,Pin9Start,Pin11Start};
-const int OutgoingPathsEnd[NumOutGoingPaths] = {Pin7Start - 1,Pin9Start - 1,Pin11Start - 1,BodyStart - 1};
+const int IncomingPathsStart[NumIncomingPaths] = {Pin11Start - 1};
+const int IncomingPathsEnd[NumIncomingPaths] = {Pin9Start};
+const int OutgoingPathsStart[NumOutGoingPaths] = {Pin1Start, Pin3Start, Pin11Start};
+const int OutgoingPathsEnd[NumOutGoingPaths] = {Pin3Start - 1,Pin9Start - 1, BodyStart-1};
 
 struct SignalControl{
   int Start;
@@ -93,7 +86,6 @@ struct SignalControl{
 
       if(Current < End + Length){Current++;}
       else{
-        if(Start == Pin5Start){SignalToB = true;}
         active = false;
         Start = 0;
         End = 0;
@@ -111,7 +103,6 @@ struct SignalControl{
 
       if(Current > End - Length){Current--;}
       else{
-        if(Start == Pin5Start){SignalToB = true;}
         active = false;
         Start = 0;
         End = 0;
@@ -148,8 +139,6 @@ void setup() {
 
   FastLED.addLeds<WS2812,Pin1,RGB>(leds,Pin1Start,NumPix1);
   FastLED.addLeds<WS2812,Pin3,RGB>(leds,Pin3Start,NumPix3);
-  FastLED.addLeds<WS2812,Pin5,RGB>(leds,Pin5Start,NumPix5);
-  FastLED.addLeds<WS2812,Pin7,RGB>(leds,Pin7Start,NumPix7);
   FastLED.addLeds<WS2812,Pin9,RGB>(leds,Pin9Start,NumPix9);
   FastLED.addLeds<WS2812,Pin11,RGB>(leds,Pin11Start,NumPix11);
   FastLED.addLeds<WS2812,BodyPin,RGB>(leds,BodyStart,NumPixBod);
@@ -158,7 +147,6 @@ void setup() {
 void Body(){
   for(int x = 0; x < NumIncomingSignals; x++){
     if(Incoming[x].Incoming == true){
-      if(Incoming[x].Start == IncomingPathsStart[1]){SignalFromB = true;}
       Incoming[x].Incoming = false;
       BodyRun = true;
       SignalWait = true;
@@ -174,16 +162,21 @@ void Body(){
       SignalWait = false;
       for(int i = 0; i < NumOutGoing; i++){
         if(Outgoing[i][0].active == false){
-          for(int y = 0; y < NumOutGoingSignals; y++){
-            if(SignalFromB == true && OutgoingPathsStart[y] == Pin5Start){SignalFromB = false;}
-            else{Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);}
+          if(SignalFromA == false){
+            digitalWrite(OutgoingPin,HIGH);
+            CellASignalWait.LastTriggered = CurrentTime;
           }
+          else{SignalFromA = false;}
+
+          for(int y = 0; y < NumOutGoingSignals; y++){Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);}
           break;
         }
       }
     }
     else if(CurrentBodyState > 0){CurrentBodyState--;}
     else if(CurrentBodyState == 0){BodyRun = false;}
+
+    if(CurrentTime >= CellASignalWait.LastTriggered + CellASignalWait.Duration){digitalWrite(OutgoingPin,LOW);}
 
     BodyFrame.LastTriggered = CurrentTime;
   }
@@ -192,26 +185,29 @@ void Body(){
 void loop() {
   CurrentTime = millis();
 
-  if(digitalRead(IncomingPin) == HIGH && SignalFromBActive == false){
+  if(digitalRead(IncomingPin) == HIGH && SignalFromAActive == false){
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
-        Incoming[x].setup(IncomingPathsStart[1],IncomingPathsEnd[1]);
+        // Serial.println(x);
+        Incoming[x].Incoming = true;
         break;
       }
     }
-    SignalFromBActive = true;
+    SignalFromAActive = true;
+    SignalFromA = true;
   }
-  else if(digitalRead(IncomingPin) == LOW && SignalFromBActive == true){SignalFromBActive = false;}
+  else if(digitalRead(IncomingPin) == LOW && SignalFromAActive == true){SignalFromAActive = false;}
 
   if(CurrentTime >= NeuronWait.Duration + NeuronWait.LastTriggered){
-    CurrentRandomNum = random(0,NumIncomingPaths - 1);
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
         Incoming[x].setup(IncomingPathsStart[CurrentRandomNum],IncomingPathsEnd[CurrentRandomNum]);
         break;
       }
     }
-    NeuronWait.Duration = random(250,5000);
+    // NeuronWait.Duration = random(250,5000);
+    NeuronWait.Duration = random(5000,10000);
+
     NeuronWait.LastTriggered = CurrentTime;
   }
 
@@ -228,19 +224,10 @@ void loop() {
 
     Body();
 
-    Serial.println(SignalToB);
-
-    if(SignalToB == true){
-      digitalWrite(OutgoingPin,HIGH);
-      SignalToB = false;
-      CellBSignalWait.LastTriggered = CurrentTime;
-    }
-    else if(CurrentTime >= CellBSignalWait.LastTriggered + CellBSignalWait.Duration){
-      digitalWrite(OutgoingPin,LOW);
-    }
-
     NeuronFrames.LastTriggered = CurrentTime;
   }
+
+  // Serial.println(digitalRead(IncomingPin));
 
   FastLED.show();
 }
