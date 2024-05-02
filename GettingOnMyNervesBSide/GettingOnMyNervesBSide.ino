@@ -7,8 +7,8 @@
 #define Pin9 11
 #define Pin11 10
 #define BodyPin 9
-#define IncomingPin 22
-#define OutgoingPin 21
+// #define IncomingPin 22
+// #define OutgoingPin 21
 
 CRGB leds[NUMPIXELS];
 
@@ -38,7 +38,7 @@ struct Time{
 Time NeuronFrames = {0,0};
 Time BodyFrame = {0,2};
 Time NeuronWait = {0,50};
-Time CellASignalWait = {0,2};
+Time CellASignalWait = {0,1};
 
 
 const int Length = 5;
@@ -67,6 +67,7 @@ struct SignalControl{
   int End;
   bool active;
   bool Incoming;
+  bool Ready;
 
   void setup(int NeuronStart, int NeuronEnd){
     active = true;
@@ -132,8 +133,11 @@ void ColorSetup(){
 void setup() {
   Serial.begin(9600);
 
-  pinMode(IncomingPin,INPUT);
-  pinMode(OutgoingPin,OUTPUT);
+  Serial5.begin(9600); // recieve
+  Serial4.begin(9600); // transmit
+
+  // pinMode(IncomingPin,INPUT);
+  // pinMode(OutgoingPin,OUTPUT);
 
   ColorSetup();
 
@@ -160,14 +164,14 @@ void Body(){
     if(SignalWait == true && CurrentBodyState < 9){CurrentBodyState++;}
     else if(SignalWait == true && CurrentBodyState == 9){
       SignalWait = false;
-      for(int i = 0; i < NumOutGoing; i++){
-        if(Outgoing[i][0].active == false){
-          if(SignalFromA == false){
-            digitalWrite(OutgoingPin,HIGH);
-            CellASignalWait.LastTriggered = CurrentTime;
-          }
-          else{SignalFromA = false;}
 
+      if(SignalFromA == false){
+        Serial4.println(1);
+      }
+      else{SignalFromA = false;}
+
+      for(int i = 0; i < NumOutGoing; i++){
+        if(Outgoing[i][0].active == false && Outgoing[i][1].active == false && Outgoing[i][2].active == false && Outgoing[i][3].active == false){
           for(int y = 0; y < NumOutGoingSignals; y++){Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);}
           break;
         }
@@ -176,27 +180,24 @@ void Body(){
     else if(CurrentBodyState > 0){CurrentBodyState--;}
     else if(CurrentBodyState == 0){BodyRun = false;}
 
-    if(CurrentTime >= CellASignalWait.LastTriggered + CellASignalWait.Duration){digitalWrite(OutgoingPin,LOW);}
-
     BodyFrame.LastTriggered = CurrentTime;
   }
 }
 
 void loop() {
   CurrentTime = millis();
-
-  if(digitalRead(IncomingPin) == HIGH && SignalFromAActive == false){
+  Serial5.read();
+  if(Serial5.available() == true){
+    Serial.println("activated");
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
-        // Serial.println(x);
         Incoming[x].Incoming = true;
         break;
       }
     }
-    SignalFromAActive = true;
+    Serial5.clear();
     SignalFromA = true;
   }
-  else if(digitalRead(IncomingPin) == LOW && SignalFromAActive == true){SignalFromAActive = false;}
 
   if(CurrentTime >= NeuronWait.Duration + NeuronWait.LastTriggered){
     for(int x = 0; x < NumIncomingSignals; x++){
@@ -205,8 +206,8 @@ void loop() {
         break;
       }
     }
-    // NeuronWait.Duration = random(250,5000);
-    NeuronWait.Duration = random(5000,10000);
+    NeuronWait.Duration = random(250,5000);
+    //NeuronWait.Duration = random(5000,10000);
 
     NeuronWait.LastTriggered = CurrentTime;
   }
@@ -222,12 +223,10 @@ void loop() {
       }
     }
 
-    Body();
-
     NeuronFrames.LastTriggered = CurrentTime;
   }
 
-  // Serial.println(digitalRead(IncomingPin));
+  Body();
 
   FastLED.show();
 }
