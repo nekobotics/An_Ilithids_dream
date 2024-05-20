@@ -2,11 +2,11 @@
 
 // A:463 + Bod , B:490 + Bod
 #define NUMPIXELS 650
-#define Pin1 15
-#define Pin3 14
-#define Pin9 11
-#define Pin11 10
-#define BodyPin 9
+#define Pin1 3
+#define Pin3 22
+#define Pin9 16
+#define Pin11 8
+#define BodyPin 2
 // #define IncomingPin 22
 // #define OutgoingPin 21
 
@@ -36,7 +36,7 @@ struct Time{
   long Duration;
 };
 Time NeuronFrames = {0,0};
-Time BodyFrame = {0,2};
+Time BodyFrame = {0,1};
 Time NeuronWait = {0,50};
 Time CellASignalWait = {0,1};
 
@@ -74,6 +74,7 @@ struct SignalControl{
     Start = NeuronStart;
     End = NeuronEnd;
     Current = Start;
+    FastLED.setMaxRefreshRate(0);
   }
   
   void run(){
@@ -133,7 +134,7 @@ void ColorSetup(){
 void setup() {
   Serial.begin(9600);
 
-  Serial5.begin(9600); // recieve
+  Serial3.begin(9600); // recieve
   Serial4.begin(9600); // transmit
 
   // pinMode(IncomingPin,INPUT);
@@ -152,27 +153,26 @@ void Body(){
   for(int x = 0; x < NumIncomingSignals; x++){
     if(Incoming[x].Incoming == true){
       Incoming[x].Incoming = false;
+      Incoming[x].active = false;
       BodyRun = true;
       SignalWait = true;
       break;
     }
   }
 
-  if((BodyRun == true || SignalWait == true) && CurrentTime >= BodyFrame.Duration + BodyFrame.LastTriggered){
+  if((BodyRun == true) && CurrentTime >= BodyFrame.Duration + BodyFrame.LastTriggered){
     for(int x = BodyStart; x < BodyEnd; x++){leds[x] = CRGB(BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);}
 
     if(SignalWait == true && CurrentBodyState < 9){CurrentBodyState++;}
     else if(SignalWait == true && CurrentBodyState == 9){
       SignalWait = false;
-
-      if(SignalFromA == false){
-        Serial4.println(1);
-      }
-      else{SignalFromA = false;}
-
       for(int i = 0; i < NumOutGoing; i++){
-        if(Outgoing[i][0].active == false && Outgoing[i][1].active == false && Outgoing[i][2].active == false && Outgoing[i][3].active == false){
-          for(int y = 0; y < NumOutGoingSignals; y++){Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);}
+        if(Outgoing[i][0].active == false){
+          if(SignalFromA == false){Serial4.println(1);}
+          else{SignalFromA = false;}
+          for(int y = 0; y < NumOutGoingSignals; y++){
+            Outgoing[i][y].setup(OutgoingPathsStart[y],OutgoingPathsEnd[y]);
+          }
           break;
         }
       }
@@ -186,18 +186,18 @@ void Body(){
 
 void loop() {
   CurrentTime = millis();
-  Serial5.read();
-  if(Serial5.available() == true){
-    Serial.println("activated");
+  if(Serial3.read() == 1){
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
         Incoming[x].Incoming = true;
+        Incoming[x].active = true;
         break;
       }
     }
-    Serial5.clear();
+    Serial3.clear();
     SignalFromA = true;
   }
+  else{SignalFromA = false;}
 
   if(CurrentTime >= NeuronWait.Duration + NeuronWait.LastTriggered){
     for(int x = 0; x < NumIncomingSignals; x++){
@@ -206,7 +206,7 @@ void loop() {
         break;
       }
     }
-    NeuronWait.Duration = random(250,5000);
+    NeuronWait.Duration = random(1000,5000);
     //NeuronWait.Duration = random(5000,10000);
 
     NeuronWait.LastTriggered = CurrentTime;

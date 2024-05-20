@@ -2,13 +2,13 @@
 
 // A:463 + Bod , B:490 + Bod
 #define NUMPIXELS 607
-#define Pin1 16
-#define Pin3 15
-#define Pin5 14
-#define Pin7 11
-#define Pin9 10
-#define Pin11 9
-#define BodyPin 8
+#define Pin1 3
+#define Pin3 22
+#define Pin5 23
+#define Pin7 14
+#define Pin9 16
+#define Pin11 8
+#define BodyPin 2
 // #define IncomingPin 22
 // #define OutgoingPin 21
 
@@ -44,7 +44,7 @@ struct Time{
   long Duration;
 };
 Time NeuronFrames = {0,0};
-Time BodyFrame = {0,2};
+Time BodyFrame = {0,1};
 Time NeuronWait = {0,50};
 Time CellBSignalWait = {0,1};
 
@@ -115,7 +115,7 @@ struct SignalControl{
       else if(Current == End - Length){
         if(Start == Pin5Start){SignalToB = true;}
         active = false;
-        Start = 0;
+        // Start = 0;
         End = 0;
         Current = 0;
         Incoming = true;
@@ -142,7 +142,7 @@ void ColorSetup(){
 
 void setup() {
   Serial.begin(9600);
-  Serial5.begin(9600); // recieve
+  Serial3.begin(9600); // recieve
   Serial4.begin(9600); // transmit
 
   // pinMode(IncomingPin,INPUT);
@@ -196,14 +196,14 @@ void Body(){
 void loop() {
   CurrentTime = millis();
 
-  if(Serial5.available()){
+  if(Serial3.available()){
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
         Incoming[x].setup(IncomingPathsStart[1],IncomingPathsEnd[1]);
         break;
       }
     }
-    Serial5.clear();
+    Serial3.clear();
   }
 
   if(CurrentTime >= NeuronWait.Duration + NeuronWait.LastTriggered){
@@ -214,7 +214,7 @@ void loop() {
         break;
       }
     }
-    NeuronWait.Duration = random(250,5000);
+    NeuronWait.Duration = random(1000,5000);
     NeuronWait.LastTriggered = CurrentTime;
   }
 
