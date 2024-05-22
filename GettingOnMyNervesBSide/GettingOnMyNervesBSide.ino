@@ -1,29 +1,36 @@
-#include <FastLED.h>
+#include <OctoWS2811.h>
 
 // A:463 + Bod , B:490 + Bod
-#define NUMPIXELS 650
-#define Pin1 3
-#define Pin3 22
-#define Pin9 16
-#define Pin11 8
-#define BodyPin 2
-// #define IncomingPin 22
-// #define OutgoingPin 21
+// #define Pin1 3
+// #define Pin3 22
+// #define Pin9 16
+// #define Pin11 8
+// #define BodyPin 2
 
-CRGB leds[NUMPIXELS];
+const int numPins = 5;
+byte pinList[numPins] = {3, 22, 16, 8, 2};
 
-#define NumPix1 142
-#define NumPix3 79
-#define NumPix9 167
-#define NumPix11 127
-#define NumPixBod 144
+const int ledsPerStrip = 205;
+
+DMAMEM int displayMemory[ledsPerStrip*6];
+int drawingMemory[ledsPerStrip*6];
+
+const int config = WS2811_GRB | WS2811_800kHz;
+
+OctoWS2811 leds(ledsPerStrip, displayMemory, drawingMemory, config, numPins, pinList);
+
+#define NumPix1 112
+#define NumPix3 71 //+ 46
+#define NumPix9 165 //+ 73
+#define NumPix11 95 //+ 28
+#define NumPixBod 205
 
 const int Pin1Start = 0; 
-const int Pin3Start = NumPix1;
-const int Pin9Start = Pin3Start + NumPix3;
-const int Pin11Start = Pin9Start + NumPix9;
-const int BodyStart = Pin11Start + NumPix11;
-const int BodyEnd = NUMPIXELS - 1;
+const int Pin3Start = ledsPerStrip;
+const int Pin9Start = Pin3Start + ledsPerStrip;
+const int Pin11Start = Pin9Start + ledsPerStrip;
+const int BodyStart = Pin11Start + ledsPerStrip;
+const int BodyEnd = BodyStart + ledsPerStrip;
 
 bool SignalFromAActive;
 bool SignalFromA;
@@ -35,8 +42,8 @@ struct Time{
   unsigned long LastTriggered;
   long Duration;
 };
-Time NeuronFrames = {0,0};
-Time BodyFrame = {0,1};
+Time NeuronFrames = {0,2};
+Time BodyFrame = {0,3};
 Time NeuronWait = {0,50};
 Time CellASignalWait = {0,1};
 
@@ -56,7 +63,7 @@ const int NumOutGoing = NumIncomingPaths * 2;
 const int NumOutGoingSignals = 4;
 const int NumSignals = NumIncomingSignals * NumOutGoingPaths;
 
-const int IncomingPathsStart[NumIncomingPaths] = {Pin11Start - 1};
+const int IncomingPathsStart[NumIncomingPaths] = {Pin11Start};
 const int IncomingPathsEnd[NumIncomingPaths] = {Pin9Start};
 const int OutgoingPathsStart[NumOutGoingPaths] = {Pin1Start, Pin3Start, Pin11Start};
 const int OutgoingPathsEnd[NumOutGoingPaths] = {Pin3Start - 1,Pin9Start - 1, BodyStart-1};
@@ -74,14 +81,13 @@ struct SignalControl{
     Start = NeuronStart;
     End = NeuronEnd;
     Current = Start;
-    FastLED.setMaxRefreshRate(0);
   }
   
   void run(){
     if(Start < End){
       for(int x=0; x< Length; x++){
         if(Current - x < Start){break;}
-        else if(Current - x <= End){leds[Current - x] = CRGB(SignalWhite[x],SignalWhite[x],SignalWhite[x]);} 
+        else if(Current - x <= End){leds.setPixel(Current - x, SignalWhite[x],SignalWhite[x],SignalWhite[x]);} 
       }
 
       if(Current == End){Incoming = true;}
@@ -98,7 +104,7 @@ struct SignalControl{
     else if(Start > End){
       for(int x=0; x< Length; x++){
         if(Current + x > Start){break;}
-        else if(Current + x >= End){leds[Current + x] = CRGB(SignalWhite[x],SignalWhite[x],SignalWhite[x]);} 
+        else if(Current + x >= End){leds.setPixel(Current + x, SignalWhite[x],SignalWhite[x],SignalWhite[x]);} 
       }
 
       if(Current == End){Incoming = true;}
@@ -137,16 +143,16 @@ void setup() {
   Serial3.begin(9600); // recieve
   Serial4.begin(9600); // transmit
 
-  // pinMode(IncomingPin,INPUT);
-  // pinMode(OutgoingPin,OUTPUT);
-
   ColorSetup();
 
-  FastLED.addLeds<WS2812,Pin1,RGB>(leds,Pin1Start,NumPix1);
-  FastLED.addLeds<WS2812,Pin3,RGB>(leds,Pin3Start,NumPix3);
-  FastLED.addLeds<WS2812,Pin9,RGB>(leds,Pin9Start,NumPix9);
-  FastLED.addLeds<WS2812,Pin11,RGB>(leds,Pin11Start,NumPix11);
-  FastLED.addLeds<WS2812,BodyPin,RGB>(leds,BodyStart,NumPixBod);
+  // FastLED.addLeds<WS2812,Pin1,RGB>(leds,Pin1Start,NumPix1);
+  // FastLED.addLeds<WS2812,Pin3,RGB>(leds,Pin3Start,NumPix3);
+  // FastLED.addLeds<WS2812,Pin9,RGB>(leds,Pin9Start,NumPix9);
+  // FastLED.addLeds<WS2812,Pin11,RGB>(leds,Pin11Start,NumPix11);
+  // FastLED.addLeds<WS2812,BodyPin,RGB>(leds,BodyStart,NumPixBod);
+
+  leds.begin();
+  leds.show();
 }
 
 void Body(){
@@ -161,7 +167,7 @@ void Body(){
   }
 
   if((BodyRun == true) && CurrentTime >= BodyFrame.Duration + BodyFrame.LastTriggered){
-    for(int x = BodyStart; x < BodyEnd; x++){leds[x] = CRGB(BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);}
+    for(int x = BodyStart; x < BodyEnd; x++){leds.setPixel(x,BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState],BodyWhite[CurrentBodyState]);}
 
     if(SignalWait == true && CurrentBodyState < 9){CurrentBodyState++;}
     else if(SignalWait == true && CurrentBodyState == 9){
@@ -202,7 +208,7 @@ void loop() {
   if(CurrentTime >= NeuronWait.Duration + NeuronWait.LastTriggered){
     for(int x = 0; x < NumIncomingSignals; x++){
       if(Incoming[x].active == false){
-        Incoming[x].setup(IncomingPathsStart[CurrentRandomNum],IncomingPathsEnd[CurrentRandomNum]);
+        Incoming[x].setup(IncomingPathsStart[0],IncomingPathsEnd[0]);
         break;
       }
     }
@@ -228,5 +234,5 @@ void loop() {
 
   Body();
 
-  FastLED.show();
+  leds.show();
 }
