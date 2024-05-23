@@ -1,7 +1,7 @@
 #include <OctoWS2811.h>
 
 const int SignalLength = 5;
-int SignalWhite[SignalLength];
+float SignalWhite[SignalLength];
 int BodyWhite[10];
 int BodyStatus;
 bool CellSignalRecieved;
@@ -25,13 +25,18 @@ const int Pin11Start = Pin9Start + ledsPerStrip;
 const int BodyStart = Pin11Start + ledsPerStrip;
 const int BodyEnd = BodyStart + ledsPerStrip;
 
+const int Pin1End = Pin1Start + 112;
+const int Pin3End = Pin3Start + 63;
+const int Pin9End = Pin9Start + 137;
+const int Pin11End = Pin11Start + 95;
+
 const int NumOutgoing = 3;
 const int NumIncoming = 1;
 
-const int IncomingStart[NumIncoming] = {Pin11Start - 1};
+const int IncomingStart[NumIncoming] = {Pin9End};
 const int IncomingEnd[NumIncoming] = {Pin9Start};
 const int OutgoingStart[NumOutgoing] = {Pin1Start,Pin3Start,Pin11Start};
-const int OutgoingEnd[NumOutgoing] = {Pin3Start-1,Pin9Start-1,BodyStart-1};
+const int OutgoingEnd[NumOutgoing] = {Pin1End,Pin3End,Pin11End};
 
 unsigned long CurrentTime;
 struct Time{
@@ -57,10 +62,19 @@ struct SignalControl{
   }
 
   void run(){
+    float FadeStart = (abs(Start - End))/2;
+
     if(Start > End){
+      float FadeIn = ((Start - Current)/FadeStart);
       for(int x=0; x < SignalLength; x++){
-        if(Current + x > Start){break;}
-        else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        if(Current > Start - FadeStart){
+          if(Current + x > Start){break;}
+          else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x] * FadeIn,SignalWhite[x] * FadeIn,SignalWhite[x] *FadeIn);}
+        }
+        else{
+          if(Current + x > Start){break;}
+          else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        }
       }
 
       if(Current != End - SignalLength){Current--;}
@@ -68,9 +82,17 @@ struct SignalControl{
     }
 
     else if (Start < End){
+      float FadeOut = ((End - Current)/FadeStart);
+
       for(int x=0; x < SignalLength; x++){
-        if(Current - x < Start){break;}
-        else if(Current - x <= End){leds.setPixel(Current-x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        if(Current > End - FadeStart){
+          if(Current - x < Start){break;}
+          else if(Current - x <= End && FadeOut >= 0){leds.setPixel(Current-x,SignalWhite[x] * FadeOut,SignalWhite[x] * FadeOut,SignalWhite[x] * FadeOut);}
+        }
+        else{
+          if(Current - x < Start){break;}
+          else if(Current - x <= End){leds.setPixel(Current-x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        }
       }
 
       if(Current != End + SignalLength){Current++;}
@@ -98,7 +120,7 @@ struct SignalSequencer{
     active = true;
     SentSignal = false;
     FromCell = FromOtherCell;
-    if(FromOtherCell == false){Incoming.setup(Pin11Start -1, Pin9Start);}
+    if(FromOtherCell == false){Incoming.setup(Pin9End, Pin9Start);}
   }
 
   void run(){
@@ -114,6 +136,7 @@ struct SignalSequencer{
           digitalWrite(15,HIGH);
           digitalWrite(13,HIGH);
           SignalSendWait.LastTriggered = CurrentTime;
+          //Serial.println("Send");
         }
 
         for(int x = 0; x < NumOutgoing; x++){
@@ -149,7 +172,7 @@ void ColorSetup(){
 void setup() {
   ColorSetup();
   
-  //Serial.begin(9600);
+  Serial.begin(9600);
 
   pinMode(17,INPUT_PULLDOWN);
   pinMode(15,OUTPUT);
@@ -157,6 +180,8 @@ void setup() {
 
   leds.begin();
   leds.show();
+
+  Test.setup(Pin9Start, Pin11Start);
 }
 
 void Body(){
@@ -173,10 +198,12 @@ void Body(){
   }
 }
 
-void loop() {
-  // if(Test.active == false){Test.setup(Pin11Start, Pin9Start);}
-  // else{Test.run();}
+void TestSig(){
 
+  if(Test.active == true){Test.run();}
+}
+
+void Main() {
   CurrentTime = millis();
 
  if(digitalRead(17) == HIGH && CellSignalRecieved == false){
@@ -201,7 +228,7 @@ void loop() {
         break;
       }
     }
-    DendriteWait.Duration = random(1000,5000);
+    DendriteWait.Duration = random(500,2000);
     DendriteWait.LastTriggered = CurrentTime;
   }
 
@@ -215,4 +242,9 @@ void loop() {
   }
 
   leds.show();
+}
+
+void loop(){
+  Main();
+  //TestSig();
 }

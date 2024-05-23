@@ -27,20 +27,27 @@ const int Pin11Start = Pin9Start + ledsPerStrip;
 const int BodyStart = Pin11Start + ledsPerStrip;
 const int BodyEnd = BodyStart + ledsPerStrip;
 
+const int Pin1End = Pin1Start + 53;
+const int Pin3End = Pin3Start + 84;
+const int Pin5End = Pin5Start + 71;
+const int Pin7End = Pin7Start + 57;
+const int Pin9End = Pin9Start + 54;
+const int Pin11End = Pin11Start + 48;
+
 const int NumOutgoing = 4;
 const int NumIncoming = 2;
 
-const int IncomingStart[NumIncoming] = {Pin3Start - (1 + (ledsPerStrip - 84)), Pin5Start - 1};
+const int IncomingStart[NumIncoming] = {Pin1End, Pin3End};
 const int IncomingEnd[NumIncoming] = {Pin1Start, Pin3Start};
 const int OutgoingStart[NumOutgoing] = {Pin5Start, Pin7Start, Pin9Start, Pin11Start};
-const int OutgoingEnd[NumOutgoing] = {Pin5Start + 73, Pin9Start-1, Pin11Start -1, BodyStart-1};
+const int OutgoingEnd[NumOutgoing] = {Pin5End, Pin7End, Pin9End, Pin11End};
 
 unsigned long CurrentTime;
 struct Time{
   unsigned long LastTriggered;
   long Duration;
 };
-Time NeuronFrames = {0,8};
+Time NeuronFrames = {0,2};
 Time BodyFrame = {0,10};
 Time BodyHold = {0,150};
 Time DendriteWait = {0,0};
@@ -59,10 +66,19 @@ struct SignalControl{
   }
 
   void run(){
+    float FadeStart = (abs(Start - End))/2;
+
     if(Start > End){
+      float FadeIn = ((Start - Current)/FadeStart);
       for(int x=0; x < SignalLength; x++){
-        if(Current + x > Start){break;}
-        else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        if(Current > Start - FadeStart && Start != OutgoingStart[0]){
+          if(Current + x > Start){break;}
+          else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x] * FadeIn,SignalWhite[x] * FadeIn,SignalWhite[x] *FadeIn);}
+        }
+        else{
+          if(Current + x > Start){break;}
+          else if(Current + x >= End){leds.setPixel(Current+x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        }
       }
 
       if(Current != End - SignalLength){Current--;}
@@ -70,9 +86,17 @@ struct SignalControl{
     }
 
     else if (Start < End){
+      float FadeOut = ((End - Current)/FadeStart);
+
       for(int x=0; x < SignalLength; x++){
-        if(Current - x < Start){break;}
-        else if(Current - x <= End){leds.setPixel(Current-x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        if(Current > End - FadeStart){
+          if(Current - x < Start){break;}
+          else if(Current - x <= End && FadeOut >= 0 && Start != IncomingStart[0]){leds.setPixel(Current-x,SignalWhite[x] * FadeOut,SignalWhite[x] * FadeOut,SignalWhite[x] * FadeOut);}
+        }
+        else{
+          if(Current - x < Start){break;}
+          else if(Current - x <= End){leds.setPixel(Current-x,SignalWhite[x],SignalWhite[x],SignalWhite[x]);}
+        }
       }
 
       if(Current != End + SignalLength){Current++;}
@@ -89,17 +113,20 @@ struct SignalSequencer{
   SignalControl Incoming;
   SignalControl Outgoing[NumOutgoing];
   Time AxonWait = {0,100};
-  Time SignalSendWait = {0,NeuronFrames.Duration * 2};
+  Time SignalSendWait = {0,2 * NeuronFrames.Duration};
   int CurrentOutgoing;
   bool active;
   bool AtBody;
   bool FromCell;
   bool SentSignal;
+  bool flash;
 
   void setup(bool FromOtherCell){
     active = true;
     SentSignal = false;
+    flash = false;
     FromCell = FromOtherCell;
+    //Serial.println(FromOtherCell);
     if(FromOtherCell == false){Incoming.setup(IncomingStart[0], IncomingEnd[0]);}
     else if(FromOtherCell == true){Incoming.setup(IncomingStart[1], IncomingEnd[1]);}
   }
@@ -128,12 +155,14 @@ struct SignalSequencer{
       }
 
       
-      if(Outgoing[0].active == false && FromCell == false){
+      if(Outgoing[0].active == false && FromCell == false && flash == false){
         digitalWrite(15,HIGH);
         digitalWrite(13,HIGH);
         SignalSendWait.LastTriggered = CurrentTime;
+        flash = true;
       }
-      else if (CurrentTime >= SignalSendWait.LastTriggered + SignalSendWait.Duration && FromCell == false){
+      
+      if (CurrentTime >= SignalSendWait.LastTriggered + SignalSendWait.Duration && FromCell == false){
         digitalWrite(15,LOW);
         digitalWrite(13,LOW);
       }
@@ -155,7 +184,7 @@ void setup() {
   
   Serial.begin(9600);
 
-  pinMode(17,INPUT_PULLDOWN);
+  pinMode(17,INPUT);
   pinMode(15,OUTPUT);
   pinMode(13,OUTPUT);
 
